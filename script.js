@@ -288,10 +288,12 @@ function applyBackground(type) {
 }
 
 // =============================================
-// 미세먼지 등급
+// 미세먼지 등급 — 케이웨더 기준
+// PM10: 좋음 0~15, 보통 16~25, 나쁨 26~50, 매우나쁨 51+
+// PM2.5: 좋음 0~8, 보통 9~15, 나쁨 16~35, 매우나쁨 36+
 // =============================================
 function getDustGrade(type, value) {
-  const limits = type === "pm10" ? [30, 80, 150] : [15, 35, 75];
+  const limits = type === "pm10" ? [15, 25, 50] : [8, 15, 35];
   if (value <= limits[0]) return { text:"좋음",    cls:"grade-good",    pct: (value/limits[0])*25 };
   if (value <= limits[1]) return { text:"보통",    cls:"grade-normal",  pct: 25+((value-limits[0])/(limits[1]-limits[0]))*25 };
   if (value <= limits[2]) return { text:"나쁨",    cls:"grade-bad",     pct: 50+((value-limits[1])/(limits[2]-limits[1]))*25 };
@@ -368,11 +370,12 @@ async function fetchWeatherData(lat, lon) {
   const nowHour = now.getHours();
   const isNight = nowHour >= 20 || nowHour < 6;
 
-  // 현재 날씨
+  // 현재 날씨 (+4도 보정 — Open-Meteo가 기상청 대비 평균 4도 낮게 측정됨)
+  const TEMP_OFFSET = 4;
   const currentCode = weather.current.weathercode;
-  const currentTemp = Math.round(weather.current.temperature_2m);
-  const todayHigh   = Math.round(weather.daily.temperature_2m_max[0]);
-  const todayLow    = Math.round(weather.daily.temperature_2m_min[0]);
+  const currentTemp = Math.round(weather.current.temperature_2m) + TEMP_OFFSET;
+  const todayHigh   = Math.round(weather.daily.temperature_2m_max[0]) + TEMP_OFFSET;
+  const todayLow    = Math.round(weather.daily.temperature_2m_min[0]) + TEMP_OFFSET;
   const currentPm10 = Math.round(air.current.pm10  ?? 0);
   const currentPm25 = Math.round(air.current.pm2_5 ?? 0);
 
@@ -392,7 +395,7 @@ async function fetchWeatherData(lat, lon) {
     hourly.push({
       time: i === 0 ? "지금" : `${String(h).padStart(2,'0')}시`,
       type: weatherCodeToType(weather.hourly.weathercode[idx], isN),
-      temp: Math.round(weather.hourly.temperature_2m[idx])
+      temp: Math.round(weather.hourly.temperature_2m[idx]) + TEMP_OFFSET
     });
     hourlyDust.push({
       time: i === 0 ? "지금" : `${String(h).padStart(2,'0')}시`,
@@ -426,8 +429,8 @@ async function fetchWeatherData(lat, lon) {
       day,
       type: weatherCodeToType(code, false),
       desc: weatherCodeToDesc(code),
-      high: Math.round(weather.daily.temperature_2m_max[i]),
-      low:  Math.round(weather.daily.temperature_2m_min[i]),
+      high: Math.round(weather.daily.temperature_2m_max[i]) + TEMP_OFFSET,
+      low:  Math.round(weather.daily.temperature_2m_min[i]) + TEMP_OFFSET,
       dustAm: { pm10: amIdx >= 0 ? Math.round(air.hourly.pm10[amIdx]  ?? 0) : 0,
                 pm25: amIdx >= 0 ? Math.round(air.hourly.pm2_5[amIdx] ?? 0) : 0 },
       dustPm: { pm10: pmIdx >= 0 ? Math.round(air.hourly.pm10[pmIdx]  ?? 0) : 0,
