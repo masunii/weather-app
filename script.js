@@ -355,16 +355,20 @@ async function getLocationName(lat, lon) {
 // =============================================
 // Open-Meteo API 호출 및 데이터 변환
 // =============================================
+const WAQI_TOKEN = "7a9a5817df963bf67ede4614390994f12a0e7d93";
+
 async function fetchWeatherData(lat, lon) {
   const tz = "Asia%2FSeoul";
 
-  // 날씨 + 대기질 동시 호출
-  const [weatherRes, airRes] = await Promise.all([
+  // 날씨 + Open-Meteo 대기질 + WAQI 현재 미세먼지 동시 호출
+  const [weatherRes, airRes, waqiRes] = await Promise.all([
     fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weathercode&hourly=temperature_2m,weathercode&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=${tz}&forecast_days=7`),
-    fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm10,pm2_5&hourly=pm10,pm2_5&timezone=${tz}`)
+    fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm10,pm2_5&hourly=pm10,pm2_5&timezone=${tz}`),
+    fetch(`https://api.waqi.info/feed/geo:${lat};${lon}/?token=${WAQI_TOKEN}`)
   ]);
-  const weather = await weatherRes.json();
-  const air     = await airRes.json();
+  const weather  = await weatherRes.json();
+  const air      = await airRes.json();
+  const waqiData = await waqiRes.json();
 
   const now     = new Date();
   const nowHour = now.getHours();
@@ -374,13 +378,21 @@ async function fetchWeatherData(lat, lon) {
   // ★ 오차가 달라지면 아래 값을 조정하세요
   const TEMP_OFFSET_CURRENT = 4; // 현재 기온 보정
   const TEMP_OFFSET_HIGH    = 4; // 일별 최고 기온 보정
-  const TEMP_OFFSET_LOW     = 2; // 일별 최저 기온 보정 (최저는 오차가 작음)
+  const TEMP_OFFSET_LOW     = 2; // 일별 최저 기온 보정
   const currentCode = weather.current.weathercode;
   const currentTemp = Math.round(weather.current.temperature_2m) + TEMP_OFFSET_CURRENT;
   const todayHigh   = Math.round(weather.daily.temperature_2m_max[0]) + TEMP_OFFSET_HIGH;
   const todayLow    = Math.round(weather.daily.temperature_2m_min[0]) + TEMP_OFFSET_LOW;
-  const currentPm10 = Math.round(air.current.pm10  ?? 0);
-  const currentPm25 = Math.round(air.current.pm2_5 ?? 0);
+
+  // WAQI 현재 미세먼지 (실측값) — 실패 시 Open-Meteo로 fallback
+  let currentPm10, currentPm25;
+  if (waqiData.status === "ok") {
+    currentPm10 = Math.round(waqiData.data.iaqi?.pm10?.v ?? air.current.pm10  ?? 0);
+    currentPm25 = Math.round(waqiData.data.iaqi?.pm25?.v ?? air.current.pm2_5 ?? 0);
+  } else {
+    currentPm10 = Math.round(air.current.pm10  ?? 0);
+    currentPm25 = Math.round(air.current.pm2_5 ?? 0);
+  }
 
   // 시간별 예보 — 현재 시각부터 12시간
   const hourlyTimes = weather.hourly.time;
