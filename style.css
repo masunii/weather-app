@@ -1,0 +1,419 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, 'Apple SD Gothic Neo', sans-serif;
+  min-height: 100vh;
+  min-height: 100dvh;
+  color: #fff;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           env(safe-area-inset-bottom) env(safe-area-inset-left);
+  transition: background 1.2s ease;
+  /* 텍스트 그림자로 밝은 배경에서도 가독성 확보 */
+  text-shadow: 0 1px 4px rgba(0,0,0,0.35);
+}
+
+/* ── 날씨별 배경 ── */
+body.bg-sunny   { background: linear-gradient(160deg, #2980b9 0%, #8ac1ff 60%, #a8e6ff 100%); }
+body.bg-cloudy  { background: linear-gradient(160deg, #3a5fa0 0%, #6e8efb 100%); }
+body.bg-rainy   { background: linear-gradient(160deg, #1e2d40 0%, #3d5a80 100%); }
+body.bg-snowy   { background: linear-gradient(160deg, #7ba7d4 0%, #c9d6ff 100%); }
+body.bg-thunder { background: linear-gradient(160deg, #12121f 0%, #2d2d44 100%); }
+body.bg-night   { background: linear-gradient(160deg, #0f0c29 0%, #302b63 100%); }
+body.bg-foggy   { background: linear-gradient(160deg, #4a5568 0%, #8a9bb0 100%); }
+body.bg-default { background: linear-gradient(160deg, #1a1a2e 0%, #0f3460 100%); }
+
+/* 밝은 배경(sunny, snowy)에서 카드 글자 보정 */
+body.bg-sunny .card,
+body.bg-sunny .main-card,
+body.bg-sunny .dust-card,
+body.bg-snowy .card,
+body.bg-snowy .main-card,
+body.bg-snowy .dust-card {
+  background: rgba(0,0,0,0.18);
+  border-color: rgba(0,0,0,0.12);
+}
+
+.app {
+  max-width: 430px;
+  margin: 0 auto;
+  padding: 20px 16px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── 위치 바 ── */
+.location-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.location-icon { font-size: 14px; }
+
+.refresh-btn {
+  background: rgba(255,255,255,0.22);
+  border: none;
+  border-radius: 50%;
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  padding: 5px;
+  flex-shrink: 0;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.25);
+}
+.refresh-btn svg { width: 14px; height: 14px; }
+.refresh-btn.spinning svg { animation: spin 0.7s linear; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.date { margin-left: auto; font-size: 13px; opacity: 0.85; font-weight: 500; }
+
+/* ── 공통 카드 ── */
+.main-card, .card {
+  background: rgba(255,255,255,0.18);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: 24px;
+  border: 1px solid rgba(255,255,255,0.28);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+}
+
+/* 밝은 배경에서 카드 보정 */
+body.bg-sunny .card, body.bg-sunny .main-card,
+body.bg-snowy .card,  body.bg-snowy .main-card {
+  background: rgba(0,0,0,0.18);
+  border-color: rgba(0,0,0,0.12);
+}
+
+/* ── 메인 카드 (날씨 + 미세먼지 통합) ── */
+.main-card { padding: 20px 22px 16px; }
+
+.main-top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 80px;
+  padding-left: 20px;
+}
+
+/* 왼쪽: 기온 텍스트 — 중앙 정렬 느낌으로 */
+.main-card-info { text-align: left; }
+
+/* 오른쪽: 아이콘 */
+.weather-icon { line-height: 0; flex-shrink: 0; }
+.weather-icon svg {
+  width: 110px;
+  height: 110px;
+  margin-top: 10px; /* ★ 아이콘 위치 아래로 이동 — 숫자 키울수록 더 내려감 */
+}
+
+/* ── 메인 아이콘 동적 효과 ── */
+/* 맑음: 천천히 회전 */
+body.bg-sunny .weather-icon svg {
+  animation: spin-slow 12s linear infinite;
+}
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* 구름/흐림: 좌우로 천천히 흔들림 */
+body.bg-cloudy .weather-icon svg {
+  animation: sway 4s ease-in-out infinite;
+}
+@keyframes sway {
+  0%, 100% { transform: translateX(0); }
+  50%       { transform: translateX(8px); }
+}
+
+/* 비: 위아래로 통통 튀기 */
+body.bg-rainy .weather-icon svg {
+  animation: bounce-rain 1.6s ease-in-out infinite;
+}
+@keyframes bounce-rain {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(6px); }
+}
+
+/* 천둥: 번쩍이는 효과 */
+body.bg-thunder .weather-icon svg {
+  animation: flash 2.4s ease-in-out infinite;
+}
+@keyframes flash {
+  0%, 90%, 100% { opacity: 1; }
+  95%            { opacity: 0.3; }
+}
+
+/* 눈: 살살 흔들리며 내려오는 느낌 */
+body.bg-snowy .weather-icon svg {
+  animation: snow-fall 3s ease-in-out infinite;
+}
+@keyframes snow-fall {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%       { transform: translateY(5px) rotate(5deg); }
+}
+
+/* 밤: 부드럽게 밝아졌다 어두워짐 */
+body.bg-night .weather-icon svg {
+  animation: glow 3s ease-in-out infinite;
+}
+@keyframes glow {
+  0%, 100% { opacity: 0.8; }
+  50%       { opacity: 1; filter: drop-shadow(0 0 8px rgba(179,157,219,0.8)); }
+}
+
+/* 안개: 페이드 인/아웃 */
+body.bg-foggy .weather-icon svg {
+  animation: fade-fog 3.5s ease-in-out infinite;
+}
+@keyframes fade-fog {
+  0%, 100% { opacity: 0.6; }
+  50%       { opacity: 1; }
+}
+
+.temp-big {
+  font-size: 56px;
+  font-weight: 200;
+  letter-spacing: -3px;
+  line-height: 1;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+.weather-desc { font-size: 14px; opacity: 0.9; margin: 3px 0 8px; font-weight: 500; }
+.temp-range { display: flex; gap: 12px; font-size: 13px; font-weight: 500; }
+.c-hot  { color: #ffdd57; text-shadow: 0 1px 4px rgba(0,0,0,0.4); }
+.c-cool { color: #a8d8ff; text-shadow: 0 1px 4px rgba(0,0,0,0.4); }
+
+/* 구분선 */
+.main-divider {
+  height: 1px;
+  background: rgba(255,255,255,0.2);
+  margin: 12px 0;
+}
+
+/* 미세먼지 행 */
+.main-dust {
+  display: flex;
+  gap: 12px;
+}
+.main-dust-item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.main-dust-label {
+  font-size: 11px;
+  opacity: 0.65;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.main-dust-smile svg { width: 24px; height: 24px; flex-shrink: 0; }
+.main-dust-grade {
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.dust-bar { flex: 1; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; overflow: hidden; }
+.dust-fill { height: 100%; border-radius: 2px; transition: width 0.9s ease; }
+
+.grade-good    { color: #7effd4; }
+.grade-normal  { color: #ffe082; }
+.grade-bad     { color: #ffab76; }
+.grade-verybad { color: #ff7675; }
+
+/* ── 공통 카드 내부 ── */
+/* ★ 주간 예보 카드 포함 모든 카드의 안쪽 여백
+   — padding: 상 우 하 좌 순서
+   — 오른쪽 여백만 바꾸려면 두 번째 값을 수정 (예: 16px 24px → 오른쪽 24px) */
+.card { padding: 16px 28px; }
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.card-title { font-size: 13px; font-weight: 700; opacity: 0.8; }
+
+/* 탭 그룹 */
+.tab-group {
+  display: flex;
+  background: rgba(0,0,0,0.18);
+  border-radius: 20px;
+  padding: 2px;
+  gap: 2px;
+}
+.tab {
+  background: transparent;
+  border: none;
+  border-radius: 18px;
+  color: rgba(255,255,255,0.6);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  text-shadow: none;
+}
+.tab.active {
+  background: rgba(255,255,255,0.28);
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+
+/* ── 가로 스크롤 행 ── */
+.scroll-row {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+.scroll-row::-webkit-scrollbar { display: none; }
+
+/* 시간별 날씨 아이템 */
+.hourly-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 52px;
+  padding: 8px 6px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.1);
+}
+.hourly-time { font-size: 11px; opacity: 0.7; font-weight: 600; }
+.hourly-icon svg { width: 30px; height: 30px; }
+.hourly-temp { font-size: 14px; font-weight: 800; }
+
+/* 시간별 예보 카드 높이 고정 — 날씨/미세먼지 탭 전환 시 변하지 않도록 */
+#hourly-list {
+  min-height: 88px;   /* 날씨 탭 높이 기준 (시간+아이콘+기온) */
+}
+
+/* 시간별 미세먼지 그리드: 라벨 고정, 데이터 행 동기 스크롤 */
+.dust-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dg-row-wrap {
+  display: flex;
+  align-items: center;
+}
+
+.dg-row-label {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.75;
+  white-space: nowrap;
+  width: 36px;
+  flex-shrink: 0;
+}
+
+.dg-scroll {
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.dg-scroll::-webkit-scrollbar { display: none; }
+
+.dg-row {
+  display: flex;
+  gap: 8px;
+  width: max-content;
+}
+
+.dg-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  width: 44px;
+  flex-shrink: 0;
+}
+
+.dg-time { font-size: 11px; opacity: 0.65; font-weight: 600; margin-bottom: 4px; }
+.dg-smile svg { width: 23px; height: 23px; display: block; }
+.dg-grade { font-size: 9px; font-weight: 700; line-height: 1; margin-top: 1px; }
+
+/* 시간별 미세먼지 아이템 */
+.dust-hourly-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 58px;
+  padding: 10px 6px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.1);
+}
+.dh-time  { font-size: 11px; opacity: 0.7; font-weight: 600; }
+.dh-smile svg { width: 24px; height: 24px; }
+.dh-row   { display: flex; gap: 6px; align-items: baseline; }
+.dh-pm10  { font-size: 13px; font-weight: 800; }
+.dh-pm25  { font-size: 11px; font-weight: 600; opacity: 0.8; }
+.dh-label { font-size: 9px; opacity: 0.55; font-weight: 600; }
+
+/* ── 주간 예보 ── */
+/* 날씨/미세먼지 탭 전환 시 카드 높이 고정 */
+.weekly-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  /* 7행 × 행높이 36px + gap 0 = 252px 고정 */
+  min-height: 252px;
+}
+
+.weekly-item {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  gap: 6px;
+  height: 36px;          /* 행 높이 고정 */
+  flex-shrink: 0;
+}
+
+/* ★ 요일 텍스트 너비
+   — 날씨 탭: 아이콘+텍스트 시작 위치가 이 값에 따라 결정됨
+   — 미세먼지 탭: 이 값을 줄이면 오전/오후 정보가 요일에 더 가까워짐 */
+.weekly-day  { width: 90px; font-weight: 700; opacity: 0.9; }
+.weekly-icon svg { width: 26px; height: 26px; flex-shrink: 0; }
+.weekly-desc {
+  flex: 1;
+  font-size: 13px;
+  opacity: 0.7;
+  font-weight: 500;
+  padding-left: 8px; /* ★ 기상 상태 텍스트 오른쪽 이동 — 숫자 키울수록 더 오른쪽으로 */
+}
+.weekly-temps { display: flex; gap: 10px; font-size: 14px; font-weight: 700; }
+.weekly-low  { color: #a8d8ff; }
+.weekly-high { color: #ffdd57; }
+
+/* 주간 미세먼지 */
+.weekly-dust {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  gap: 80px; /* ★ 오전/오후 사이 간격 — 숫자 키울수록 더 벌어짐 */
+  align-items: center;
+}
+.wd-block {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.wd-period { font-size: 10px; opacity: 0.6; font-weight: 600; }
+.wd-smile svg {
+  width: 20px;  /* ★ 주간 미세먼지 탭 스마일 아이콘 크기 */
+  height: 20px; /* ★ width랑 같은 값으로 맞춰줘야 원형 유지 */
+}
+.wd-grade { font-size: 11px; font-weight: 700; }
+
+/* ── 하단 ── */
+.footer { text-align: center; font-size: 11px; opacity: 0.5; padding-top: 4px; }

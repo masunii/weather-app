@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>날씨</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+
+    <!-- 위치 바 -->
+    <div class="location-bar">
+      <span class="location-icon">📍</span>
+      <span id="location-name">서울특별시</span>
+      <button id="refresh-btn" class="refresh-btn" title="위치 새로고침">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+      </button>
+      <span id="current-date" class="date"></span>
+    </div>
+
+    <!-- 메인 카드: 날씨 + 미세먼지 통합 -->
+    <div class="main-card">
+      <div class="main-top">
+        <div class="main-card-info">
+          <div class="temp-big" id="temp-now">23°</div>
+          <div class="weather-desc" id="weather-desc">구름 조금</div>
+          <div class="temp-range">
+            <span>최고 <b id="temp-high" class="c-hot">26°</b></span>
+            <span>최저 <b id="temp-low" class="c-cool">17°</b></span>
+          </div>
+        </div>
+        <div class="weather-icon" id="weather-icon"></div>
+      </div>
+      <div class="main-divider"></div>
+      <div class="main-dust">
+        <div class="main-dust-item">
+          <span class="main-dust-label">미세먼지</span>
+          <span class="main-dust-smile" id="pm10-smile"></span>
+          <span class="main-dust-grade" id="pm10-grade"></span>
+          <div class="dust-bar"><div class="dust-fill" id="pm10-bar"></div></div>
+        </div>
+        <div class="main-dust-item">
+          <span class="main-dust-label">초미세먼지</span>
+          <span class="main-dust-smile" id="pm25-smile"></span>
+          <span class="main-dust-grade" id="pm25-grade"></span>
+          <div class="dust-bar"><div class="dust-fill" id="pm25-bar"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 시간별 예보 (날씨/미세먼지 토글) -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">시간별 예보</span>
+        <div class="tab-group">
+          <button class="tab active" id="htab-weather" onclick="switchHourlyTab('weather')">날씨</button>
+          <button class="tab" id="htab-dust" onclick="switchHourlyTab('dust')">미세먼지</button>
+        </div>
+      </div>
+      <div id="hourly-list" class="scroll-row"></div>
+    </div>
+
+    <!-- 주간 예보 (날씨/미세먼지 토글) -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">주간 예보</span>
+        <div class="tab-group">
+          <button class="tab active" id="wtab-weather" onclick="switchWeeklyTab('weather')">날씨</button>
+          <button class="tab" id="wtab-dust" onclick="switchWeeklyTab('dust')">미세먼지</button>
+        </div>
+      </div>
+      <div id="weekly-list" class="weekly-list"></div>
+    </div>
+
+    <div class="footer"><span id="updated-time">방금 업데이트됨</span></div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
