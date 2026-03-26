@@ -61,26 +61,26 @@
       </div>
     </div>
 
-    <!-- 시간별 예보 (날씨/미세먼지 토글) -->
+    <!-- 공통 날씨/미세먼지 토글 -->
+    <div class="global-tab-wrap">
+      <div class="tab-group">
+        <button class="tab active" id="gtab-weather" onclick="switchGlobalTab('weather')">날씨</button>
+        <button class="tab" id="gtab-dust" onclick="switchGlobalTab('dust')">미세먼지</button>
+      </div>
+    </div>
+
+    <!-- 시간별 예보 -->
     <div class="card">
       <div class="card-header">
         <span class="card-title">시간별 예보</span>
-        <div class="tab-group">
-          <button class="tab active" id="htab-weather" onclick="switchHourlyTab('weather')">날씨</button>
-          <button class="tab" id="htab-dust" onclick="switchHourlyTab('dust')">미세먼지</button>
-        </div>
       </div>
       <div id="hourly-list" class="scroll-row"></div>
     </div>
 
-    <!-- 주간 예보 (날씨/미세먼지 토글) -->
+    <!-- 주간 예보 -->
     <div class="card">
       <div class="card-header">
         <span class="card-title">주간 예보</span>
-        <div class="tab-group">
-          <button class="tab active" id="wtab-weather" onclick="switchWeeklyTab('weather')">날씨</button>
-          <button class="tab" id="wtab-dust" onclick="switchWeeklyTab('dust')">미세먼지</button>
-        </div>
       </div>
       <div id="weekly-list" class="weekly-list"></div>
     </div>
