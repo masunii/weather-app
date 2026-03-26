@@ -293,6 +293,8 @@ function applyBackground(type) {
 // PM2.5: 좋음 0~15, 보통 16~35, 나쁨 36~75,  매우나쁨 76+
 // =============================================
 function getDustGrade(type, value) {
+  // 데이터 없음 (0) → '-' 표시
+  if (!value || value <= 0) return { text:"-", cls:"grade-none", pct: 0 };
   const limits = type === "pm10" ? [30, 80, 150] : [15, 35, 75];
   if (value <= limits[0]) return { text:"좋음",    cls:"grade-good",    pct: (value/limits[0])*25 };
   if (value <= limits[1]) return { text:"보통",    cls:"grade-normal",  pct: 25+((value-limits[0])/(limits[1]-limits[0]))*25 };
@@ -310,7 +312,7 @@ const DUST_COLORS = {
 // 전체 코드표: https://open-meteo.com/en/docs#weathervariables
 // =============================================
 function weatherCodeToType(code, isNightTime) {
-  if (isNightTime && code <= 1) return "night";
+  if (isNightTime && code <= 2) return "night"; // 맑음/대체로맑음/구름조금 → 밤에는 달
   if (code === 0)  return "sunny";
   if (code <= 2)   return "cloudy";
   if (code === 3)  return "overcast";
@@ -353,25 +355,13 @@ async function getLocationName(lat, lon) {
 }
 
 // =============================================
-// 미세먼지 보정 함수 — 좋음 구간만 위로 보정
-// PM10: 좋음(0~30)이면 +12, 나머지는 그대로
-// PM2.5: 좋음(0~15)이면 +6, 나머지는 그대로
-// ★ 보정값을 바꾸고 싶으면 +12, +6 숫자를 조정하세요
+// 미세먼지 보정 함수
+// ★ DUST_ADD: 전체 수치에 더할 값 (0이면 보정 없음)
 // =============================================
 function scaleDust(raw, type) {
-  if (raw <= 0) return 0;
-
-  if (type === "pm10") {
-    if (raw <= 30) return Math.round(raw + 30); // 좋음 구간만 위로 보정
-    return raw;
-  }
-
-  if (type === "pm25") {
-    if (raw <= 15) return Math.round(raw + 17); // 좋음 구간만 위로 보정
-    return raw;
-  }
-
-  return raw;
+  const DUST_ADD = 10; // ★ 전체에 더할 고정값
+  if (!raw || raw <= 0) return 0;
+  return Math.round(raw) + DUST_ADD;
 }
 
 // =============================================
@@ -504,31 +494,29 @@ async function fetchWeatherData(lat, lon) {
 }
 
 // =============================================
-// 탭 전환 함수
+// 공통 탭 전환 — 시간별/주간 동시 전환
 // =============================================
+let globalTab = "weather"; // "weather" | "dust"
+
+function switchGlobalTab(tab) {
+  globalTab = tab;
+  document.getElementById("gtab-weather").classList.toggle("active", tab === "weather");
+  document.getElementById("gtab-dust").classList.toggle("active", tab === "dust");
+  if (!currentData) return;
+  if (tab === "weather") {
+    renderHourlyWeather(currentData.hourly);
+    renderWeeklyWeather(currentData.weekly);
+  } else {
+    renderHourlyDust(currentData.hourlyDust);
+    renderWeeklyDust(currentData.weekly);
+  }
+}
+
 function switchDustTab(tab) {
   dustTab = tab;
   document.getElementById("dtab-am").classList.toggle("active", tab === "am");
   document.getElementById("dtab-pm").classList.toggle("active", tab === "pm");
   if (currentData) renderDustHourly(currentData.dustHourly[tab]);
-}
-
-function switchHourlyTab(tab) {
-  hourlyTab = tab;
-  document.getElementById("htab-weather").classList.toggle("active", tab === "weather");
-  document.getElementById("htab-dust").classList.toggle("active", tab === "dust");
-  if (!currentData) return;
-  if (tab === "weather") renderHourlyWeather(currentData.hourly);
-  else                   renderHourlyDust(currentData.hourlyDust);
-}
-
-function switchWeeklyTab(tab) {
-  weeklyTab = tab;
-  document.getElementById("wtab-weather").classList.toggle("active", tab === "weather");
-  document.getElementById("wtab-dust").classList.toggle("active", tab === "dust");
-  if (!currentData) return;
-  if (tab === "weather") renderWeeklyWeather(currentData.weekly);
-  else                   renderWeeklyDust(currentData.weekly);
 }
 
 // =============================================
@@ -562,27 +550,31 @@ function renderHourlyWeather(list) {
 }
 
 function renderHourlyDust(list) {
-  const timeRow = list.map(item => `<div class="dg-cell dg-time">${item.time}</div>`).join("");
-  const pm10Row = list.map(item => {
-    const g = getDustGrade("pm10", item.pm10);
-    return `<div class="dg-cell"><span class="dg-smile">${getSmileSvg(g.cls)}</span><span class="dg-grade ${g.cls}">${g.text}</span></div>`;
-  }).join("");
-  const pm25Row = list.map(item => {
-    const g = getDustGrade("pm25", item.pm25);
-    return `<div class="dg-cell"><span class="dg-smile">${getSmileSvg(g.cls)}</span><span class="dg-grade ${g.cls}">${g.text}</span></div>`;
-  }).join("");
+  // 미세/초미세 각각 가로 스크롤 행으로 렌더
+  const makeRow = (label, type) => {
+    const cells = list.map(item => {
+      const g = getDustGrade(type, item[type === "pm10" ? "pm10" : "pm25"]);
+      const smile = g.cls === "grade-none" ? "" : `<span class="dg-smile">${getSmileSvg(g.cls)}</span>`;
+      return `<div class="dg-cell">
+        <span class="dg-time">${item.time}</span>
+        ${smile}
+        <span class="dg-grade ${g.cls}">${g.text}</span>
+      </div>`;
+    }).join("");
+    return `<div class="dg-row-wrap">
+      <div class="dg-row-label">${label}</div>
+      <div class="dg-scroll" id="dg-scroll-${type}"><div class="dg-row">${cells}</div></div>
+    </div>`;
+  };
 
   document.getElementById("hourly-list").innerHTML = `
     <div class="dust-grid">
-      <div class="dg-row-wrap"><div class="dg-row-label"></div>
-        <div class="dg-scroll" id="dg-scroll-time"><div class="dg-row">${timeRow}</div></div></div>
-      <div class="dg-row-wrap"><div class="dg-row-label">미세</div>
-        <div class="dg-scroll" id="dg-scroll-pm10"><div class="dg-row">${pm10Row}</div></div></div>
-      <div class="dg-row-wrap"><div class="dg-row-label">초미세</div>
-        <div class="dg-scroll" id="dg-scroll-pm25"><div class="dg-row">${pm25Row}</div></div></div>
+      ${makeRow("미세", "pm10")}
+      ${makeRow("초미세", "pm25")}
     </div>`;
 
-  const scrollEls = ["dg-scroll-time","dg-scroll-pm10","dg-scroll-pm25"].map(id => document.getElementById(id));
+  // 두 행 동기 스크롤
+  const scrollEls = ["dg-scroll-pm10","dg-scroll-pm25"].map(id => document.getElementById(id));
   let isSyncing = false;
   scrollEls.forEach(el => {
     el.addEventListener("scroll", () => {
@@ -612,20 +604,21 @@ function renderWeeklyDust(list) {
   document.getElementById("weekly-list").innerHTML = list.map(w => {
     const gAm = getDustGrade("pm10", w.dustAm.pm10);
     const gPm = getDustGrade("pm10", w.dustPm.pm10);
+    const amBlock = gAm.cls === "grade-none" ? "" : `
+      <span class="wd-block">
+        <span class="wd-period">오전</span>
+        <span class="wd-smile">${getSmileSvg(gAm.cls)}</span>
+        <span class="wd-grade ${gAm.cls}">${gAm.text}</span>
+      </span>`;
+    const pmBlock = gPm.cls === "grade-none" ? "" : `
+      <span class="wd-block">
+        <span class="wd-period">오후</span>
+        <span class="wd-smile">${getSmileSvg(gPm.cls)}</span>
+        <span class="wd-grade ${gPm.cls}">${gPm.text}</span>
+      </span>`;
     return `<div class="weekly-item">
       <span class="weekly-day">${w.day}</span>
-      <span class="weekly-dust">
-        <span class="wd-block">
-          <span class="wd-period">오전</span>
-          <span class="wd-smile">${getSmileSvg(gAm.cls)}</span>
-          <span class="wd-grade ${gAm.cls}">${gAm.text}</span>
-        </span>
-        <span class="wd-block">
-          <span class="wd-period">오후</span>
-          <span class="wd-smile">${getSmileSvg(gPm.cls)}</span>
-          <span class="wd-grade ${gPm.cls}">${gPm.text}</span>
-        </span>
-      </span>
+      <span class="weekly-dust">${amBlock}${pmBlock}</span>
     </div>`;
   }).join("");
 }
@@ -660,10 +653,13 @@ function render(data) {
     document.getElementById(`${type}-bar`).style.background = DUST_COLORS[grade.cls];
   });
 
-  if (hourlyTab === "weather") renderHourlyWeather(data.hourly);
-  else                         renderHourlyDust(data.hourlyDust);
-  if (weeklyTab === "weather") renderWeeklyWeather(data.weekly);
-  else                         renderWeeklyDust(data.weekly);
+  if (globalTab === "weather") {
+    renderHourlyWeather(data.hourly);
+    renderWeeklyWeather(data.weekly);
+  } else {
+    renderHourlyDust(data.hourlyDust);
+    renderWeeklyDust(data.weekly);
+  }
 
   document.getElementById("updated-time").textContent =
     now.toLocaleTimeString("ko-KR", { hour:"2-digit", minute:"2-digit" }) + " 업데이트";

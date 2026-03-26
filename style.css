@@ -224,6 +224,21 @@ body.bg-foggy .weather-icon svg {
 .grade-normal  { color: #ffe082; }
 .grade-bad     { color: #ffab76; }
 .grade-verybad { color: #ff7675; }
+.grade-none    { color: rgba(255,255,255,0.35); }
+
+/* ── 공통 날씨/미세먼지 토글 ── */
+.global-tab-wrap {
+  display: flex;
+  justify-content: center;
+}
+.global-tab-wrap .tab-group {
+  background: rgba(255,255,255,0.15);
+  padding: 3px;
+}
+.global-tab-wrap .tab {
+  padding: 6px 24px;
+  font-size: 13px;
+}
 
 /* ── 공통 카드 내부 ── */
 /* ★ 주간 예보 카드 포함 모든 카드의 안쪽 여백
@@ -293,7 +308,7 @@ body.bg-foggy .weather-icon svg {
 
 /* 시간별 예보 카드 높이 고정 — 날씨/미세먼지 탭 전환 시 변하지 않도록 */
 #hourly-list {
-  min-height: 88px;   /* 날씨 탭 높이 기준 (시간+아이콘+기온) */
+  min-height: 120px; /* 미세먼지 탭 높이 기준 (시간+스마일+등급 두 행) */
 }
 
 /* 시간별 미세먼지 그리드: 라벨 고정, 데이터 행 동기 스크롤 */
