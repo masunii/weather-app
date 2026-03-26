@@ -587,7 +587,7 @@ function renderHourlyDust(list) {
 }
 
 function renderWeeklyWeather(list) {
-  document.getElementById("weekly-list").innerHTML = list.map(w => `
+  document.getElementById("weekly-list").innerHTML = list.slice(0, 5).map(w => `
     <div class="weekly-item">
       <span class="weekly-day">${w.day}</span>
       <span class="weekly-icon">${getWeatherSvg(w.type)}</span>
@@ -601,7 +601,7 @@ function renderWeeklyWeather(list) {
 }
 
 function renderWeeklyDust(list) {
-  document.getElementById("weekly-list").innerHTML = list.map(w => {
+  document.getElementById("weekly-list").innerHTML = list.slice(0, 5).map(w => {
     const gAm = getDustGrade("pm10", w.dustAm.pm10);
     const gPm = getDustGrade("pm10", w.dustPm.pm10);
     const amBlock = gAm.cls === "grade-none" ? "" : `

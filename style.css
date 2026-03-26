@@ -354,7 +354,7 @@ body.bg-foggy .weather-icon svg {
   flex-shrink: 0;
 }
 
-.dg-time { font-size: 11px; opacity: 0.65; font-weight: 600; margin-bottom: 4px; }
+.dg-time { font-size: 11px; opacity: 0.65; font-weight: 600; margin-top: 4; margin-bottom: 4px; }
 .dg-smile svg { width: 23px; height: 23px; display: block; }
 .dg-grade { font-size: 9px; font-weight: 700; line-height: 1; margin-top: 1px; }
 
@@ -382,8 +382,8 @@ body.bg-foggy .weather-icon svg {
   display: flex;
   flex-direction: column;
   gap: 0;
-  /* 7행 × 행높이 36px + gap 0 = 252px 고정 */
-  min-height: 252px;
+  /* 5행 × 행높이 36px = 180px 고정 */
+  min-height: 180px;
 }
 
 .weekly-item {
