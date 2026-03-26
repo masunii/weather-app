@@ -353,14 +353,36 @@ async function getLocationName(lat, lon) {
 }
 
 // =============================================
+// 미세먼지 보정 함수 — 좋음 구간만 위로 보정
+// PM10: 좋음(0~30)이면 +12, 나머지는 그대로
+// PM2.5: 좋음(0~15)이면 +6, 나머지는 그대로
+// ★ 보정값을 바꾸고 싶으면 +12, +6 숫자를 조정하세요
+// =============================================
+function scaleDust(raw, type) {
+  if (raw <= 0) return 0;
+
+  if (type === "pm10") {
+    if (raw <= 30) return Math.round(raw + 30); // 좋음 구간만 위로 보정
+    return raw;
+  }
+
+  if (type === "pm25") {
+    if (raw <= 15) return Math.round(raw + 17); // 좋음 구간만 위로 보정
+    return raw;
+  }
+
+  return raw;
+}
+
+// =============================================
 // Open-Meteo API 호출 및 데이터 변환
 // =============================================
 async function fetchWeatherData(lat, lon) {
   const tz = "Asia%2FSeoul";
 
-  // 날씨 + 대기질 동시 호출
+  // 날씨(어제 포함) + 대기질 동시 호출
   const [weatherRes, airRes] = await Promise.all([
-    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weathercode&hourly=temperature_2m,weathercode&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=${tz}&forecast_days=7`),
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weathercode&hourly=temperature_2m,weathercode&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=${tz}&forecast_days=7&past_days=1`),
     fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm10,pm2_5&hourly=pm10,pm2_5&timezone=${tz}`)
   ]);
   const weather = await weatherRes.json();
@@ -370,42 +392,67 @@ async function fetchWeatherData(lat, lon) {
   const nowHour = now.getHours();
   const isNight = nowHour >= 20 || nowHour < 6;
 
-  // 기온 보정값 — Open-Meteo가 기상청 대비 낮게 측정됨
-  // ★ 오차가 달라지면 아래 값을 조정하세요
-  const TEMP_OFFSET_CURRENT = 4; // 현재 기온 보정
-  const TEMP_OFFSET_HIGH    = 4; // 일별 최고 기온 보정
-  const TEMP_OFFSET_LOW     = 2; // 일별 최저 기온 보정
+  // ★ 기온 보정값 — 오차가 달라지면 조정하세요
+  const TEMP_OFFSET_CURRENT = 5; // 현재 기온
+  const TEMP_OFFSET_HIGH    = 3; // 일별 최고
+  const TEMP_OFFSET_LOW     = 2; // 일별 최저
+
   const currentCode = weather.current.weathercode;
   const currentTemp = Math.round(weather.current.temperature_2m) + TEMP_OFFSET_CURRENT;
-  const todayHigh   = Math.round(weather.daily.temperature_2m_max[0]) + TEMP_OFFSET_HIGH;
-  const todayLow    = Math.round(weather.daily.temperature_2m_min[0]) + TEMP_OFFSET_LOW;
-  const currentPm10 = Math.round(air.current.pm10  ?? 0);
-  const currentPm25 = Math.round(air.current.pm2_5 ?? 0);
+  const todayHigh   = Math.round(weather.daily.temperature_2m_max[1]) + TEMP_OFFSET_HIGH; // past_days=1이라 index 1이 오늘
+  const todayLow    = Math.round(weather.daily.temperature_2m_min[1]) + TEMP_OFFSET_LOW;
 
-  // 시간별 예보 — 현재 시각부터 12시간
+  // 어제 기온 (daily[0]이 어제)
+  const yesterdayAvg = Math.round(
+    (weather.daily.temperature_2m_max[0] + weather.daily.temperature_2m_min[0]) / 2
+  ) + Math.round((TEMP_OFFSET_HIGH + TEMP_OFFSET_LOW) / 2);
+  const tempDiff = currentTemp - yesterdayAvg;
+  const tempDiffStr = tempDiff > 0 ? `어제보다 ${tempDiff}° 높음`
+                    : tempDiff < 0 ? `어제보다 ${Math.abs(tempDiff)}° 낮음`
+                    : `어제와 비슷`;
+
+  const currentPm10 = scaleDust(air.current.pm10  ?? 0, "pm10");
+  const currentPm25 = scaleDust(air.current.pm2_5 ?? 0, "pm25");
+
+  // 시간별 예보 — 고정 구간 0,3,6,9,12,15,18,21시 (오늘+내일 48시간 중 해당 시각)
   const hourlyTimes = weather.hourly.time;
   const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-  const nowKey   = `${todayStr}T${String(nowHour).padStart(2,'0')}:00`;
-  const startIdx = Math.max(hourlyTimes.findIndex(t => t === nowKey), 0);
+  const tomorrowDate = new Date(now); tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+  const tomorrowStr = `${tomorrowDate.getFullYear()}-${String(tomorrowDate.getMonth()+1).padStart(2,'0')}-${String(tomorrowDate.getDate()).padStart(2,'0')}`;
+
+  // 고정 슬롯: 오늘 남은 슬롯 + 내일 슬롯 (3시간 간격, 최대 9개)
+  const fixedSlots = [0,3,6,9,12,15,18,21];
+  const slotKeys = [
+    ...fixedSlots.map(h => `${todayStr}T${String(h).padStart(2,'0')}:00`),
+    ...fixedSlots.map(h => `${tomorrowStr}T${String(h).padStart(2,'0')}:00`)
+  ].filter(key => {
+    // 현재 시각 이후 슬롯만, 최대 9개
+    const slotHour = parseInt(key.slice(11,13));
+    const slotDate = key.slice(0,10);
+    if (slotDate === todayStr) return slotHour >= Math.floor(nowHour / 3) * 3;
+    return true;
+  }).slice(0, 9);
 
   const hourly     = [];
   const hourlyDust = [];
-  for (let i = 0; i <= 12; i++) {
-    const idx = startIdx + i;
-    if (idx >= hourlyTimes.length) break;
-    const h   = new Date(hourlyTimes[idx]).getHours();
-    const isN = h >= 20 || h < 6;
+  slotKeys.forEach((key, i) => {
+    const idx = hourlyTimes.findIndex(t => t === key);
+    if (idx < 0) return;
+    const h    = parseInt(key.slice(11,13));
+    const date = key.slice(0,10);
+    const isN  = h >= 20 || h < 6;
+    const label = i === 0 ? "지금" : `${String(h).padStart(2,'0')}시`;
     hourly.push({
-      time: i === 0 ? "지금" : `${String(h).padStart(2,'0')}시`,
+      time: label,
       type: weatherCodeToType(weather.hourly.weathercode[idx], isN),
-      temp: Math.round(weather.hourly.temperature_2m[idx]) + TEMP_OFFSET
+      temp: Math.round(weather.hourly.temperature_2m[idx]) + TEMP_OFFSET_CURRENT
     });
     hourlyDust.push({
-      time: i === 0 ? "지금" : `${String(h).padStart(2,'0')}시`,
-      pm10: Math.round(air.hourly.pm10[idx]  ?? 0),
-      pm25: Math.round(air.hourly.pm2_5[idx] ?? 0)
+      time: label,
+      pm10: scaleDust(air.hourly.pm10[idx]  ?? 0, "pm10"),
+      pm25: scaleDust(air.hourly.pm2_5[idx] ?? 0, "pm25")
     });
-  }
+  });
 
   // 미세먼지 오전(06~11시) / 오후(12~19시) 슬롯
   function makeDustSlots(slots) {
@@ -414,17 +461,17 @@ async function fetchWeatherData(lat, lon) {
       const idx = air.hourly.time.findIndex(t => t === key);
       return {
         time: `${String(h).padStart(2,'0')}시`,
-        pm10: idx >= 0 ? Math.round(air.hourly.pm10[idx]  ?? 0) : 0,
-        pm25: idx >= 0 ? Math.round(air.hourly.pm2_5[idx] ?? 0) : 0
+        pm10: idx >= 0 ? scaleDust(air.hourly.pm10[idx]  ?? 0, "pm10") : 0,
+        pm25: idx >= 0 ? scaleDust(air.hourly.pm2_5[idx] ?? 0, "pm25") : 0
       };
     });
   }
 
-  // 주간 예보 7일
+  // 주간 예보 7일 (past_days=1이라 index 1부터가 오늘)
   const DAYS = ["일","월","화","수","목","금","토"];
-  const weekly = weather.daily.time.map((dateStr, i) => {
+  const weekly = weather.daily.time.slice(1).map((dateStr, i) => {
     const d    = new Date(dateStr + "T00:00:00");
-    const code = weather.daily.weathercode[i];
+    const code = weather.daily.weathercode[i + 1];
     const day  = i === 0 ? "오늘" : i === 1 ? "내일" : `${DAYS[d.getDay()]}요일`;
     const amIdx = air.hourly.time.findIndex(t => t === `${dateStr}T06:00`);
     const pmIdx = air.hourly.time.findIndex(t => t === `${dateStr}T14:00`);
@@ -432,12 +479,12 @@ async function fetchWeatherData(lat, lon) {
       day,
       type: weatherCodeToType(code, false),
       desc: weatherCodeToDesc(code),
-      high: Math.round(weather.daily.temperature_2m_max[i]) + TEMP_OFFSET_HIGH,
-      low:  Math.round(weather.daily.temperature_2m_min[i]) + TEMP_OFFSET_LOW,
-      dustAm: { pm10: amIdx >= 0 ? Math.round(air.hourly.pm10[amIdx]  ?? 0) : 0,
-                pm25: amIdx >= 0 ? Math.round(air.hourly.pm2_5[amIdx] ?? 0) : 0 },
-      dustPm: { pm10: pmIdx >= 0 ? Math.round(air.hourly.pm10[pmIdx]  ?? 0) : 0,
-                pm25: pmIdx >= 0 ? Math.round(air.hourly.pm2_5[pmIdx] ?? 0) : 0 }
+      high: Math.round(weather.daily.temperature_2m_max[i + 1]) + TEMP_OFFSET_HIGH,
+      low:  Math.round(weather.daily.temperature_2m_min[i + 1]) + TEMP_OFFSET_LOW,
+      dustAm: { pm10: amIdx >= 0 ? scaleDust(air.hourly.pm10[amIdx]  ?? 0, "pm10") : 0,
+                pm25: amIdx >= 0 ? scaleDust(air.hourly.pm2_5[amIdx] ?? 0, "pm25") : 0 },
+      dustPm: { pm10: pmIdx >= 0 ? scaleDust(air.hourly.pm10[pmIdx]  ?? 0, "pm10") : 0,
+                pm25: pmIdx >= 0 ? scaleDust(air.hourly.pm2_5[pmIdx] ?? 0, "pm25") : 0 }
     };
   });
 
@@ -445,7 +492,8 @@ async function fetchWeatherData(lat, lon) {
     location: "로딩 중...",
     current:  { temp: currentTemp, high: todayHigh, low: todayLow,
                 desc: weatherCodeToDesc(currentCode),
-                type: weatherCodeToType(currentCode, isNight) },
+                type: weatherCodeToType(currentCode, isNight),
+                tempDiffStr },
     dust:     { pm10: currentPm10, pm25: currentPm25 },
     dustHourly: { am: makeDustSlots([6,7,8,9,10,11]),
                   pm: makeDustSlots([12,13,14,15,16,17,18,19]) },
@@ -597,6 +645,7 @@ function render(data) {
   document.getElementById("weather-icon").innerHTML     = getWeatherSvg(data.current.type);
   document.getElementById("temp-now").textContent       = data.current.temp + "°";
   document.getElementById("weather-desc").textContent   = data.current.desc;
+  document.getElementById("temp-diff").textContent      = data.current.tempDiffStr || "";
   document.getElementById("temp-high").textContent      = data.current.high + "°";
   document.getElementById("temp-low").textContent       = data.current.low + "°";
 
@@ -647,9 +696,13 @@ async function loadWeather() {
 
   } catch (err) {
     // GPS 거부 또는 API 오류 → mock 데이터로 fallback
-    console.warn("API 실패, 샘플 데이터 사용:", err.message);
-    render(mockData);
-    document.getElementById("location-name").textContent = mockData.location + " (샘플)";
+    // 에러 내용을 위치 표시줄에 잠깐 보여줘서 원인 파악
+    console.warn("API 실패:", err);
+    document.getElementById("location-name").textContent = "오류: " + err.message;
+    setTimeout(() => {
+      render(mockData);
+      document.getElementById("location-name").textContent = mockData.location + " (샘플)";
+    }, 3000); // 3초 후 샘플 데이터로 전환
   } finally {
     btn.classList.remove("spinning");
   }
